@@ -13,7 +13,7 @@
 #include <dirent.h>
 
 #define TITLE_TEXT                  "WUP installer by crediar (HBL version 1.0 by Dimok)"
-#define TITLE_TEXT2                 "[Mod 1.3 by Yardape8000]"
+#define TITLE_TEXT2                 "[Mod 1.3 by Yardape8000, blacklist removed]"
 
 #define HBL_TITLE_ID	0x0005000013374842
 
@@ -177,10 +177,7 @@ static void InstallTitle(void)
         u32 titleIdHigh = mcpInstallInfo[0];
         u32 titleIdLow = mcpInstallInfo[1];
 		int spoofFiles = 0;
-        if ((titleIdHigh == 00050010)
-			&&    ((titleIdLow == 0x10041000)     // JAP Version.bin
-				|| (titleIdLow == 0x10041100)     // USA Version.bin
-				|| (titleIdLow == 0x10041200)))   // EUR Version.bin
+        if (titleIdHigh == 0x00050010)   // sys stuff
 		{
 			spoofFiles = 1;
 			installToUsb = 0;
