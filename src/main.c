@@ -182,13 +182,6 @@ static void InstallTitle(void)
 			spoofFiles = 1;
 			installToUsb = 0;
 		}
-
-        if (spoofFiles
-		   || (titleIdHigh == 0x0005000E)     // game update
-           || (titleIdHigh == 0x00050000)     // game
-           || (titleIdHigh == 0x0005000C)     // DLC
-           || (titleIdHigh == 0x00050002))    // Demo
-        {
             installedTitle = ((u64)titleIdHigh << 32ULL) | titleIdLow;
 
 			result = MCP_InstallSetTargetDevice(mcpHandle, installToUsb);
@@ -290,11 +283,7 @@ static void InstallTitle(void)
             {
                 installSuccess = 1;
             }
-        }
-        else
-        {
-            __os_snprintf(errorText1, sizeof(errorText1), "Error: Not a game, game update, DLC, demo or version title");
-        }
+    	}
     }
     while(0);
 
