@@ -182,110 +182,99 @@ static void InstallTitle(void)
 			spoofFiles = 1;
 			installToUsb = 0;
 		}
-            installedTitle = ((u64)titleIdHigh << 32ULL) | titleIdLow;
+        installedTitle = ((u64)titleIdHigh << 32ULL) | titleIdLow;
 
-			result = MCP_InstallSetTargetDevice(mcpHandle, installToUsb);
-			if(result != 0)
-			{
-				__os_snprintf(errorText1, sizeof(errorText1), "Error: MCP_InstallSetTargetDevice 0x%08X", MCP_GetLastRawError());
-				if (installToUsb)
-					__os_snprintf(errorText2, sizeof(errorText2), "Possible USB HDD disconnected or failure");
-				break;
-			}
-			result = MCP_InstallSetTargetUsb(mcpHandle, installToUsb);
-			if(result != 0)
-			{
-				__os_snprintf(errorText1, sizeof(errorText1), "Error: MCP_InstallSetTargetUsb 0x%08X", MCP_GetLastRawError());
-				if (installToUsb)
-					__os_snprintf(errorText2, sizeof(errorText2), "Possible USB HDD disconnected or failure");
-				break;
-			}
+		result = MCP_InstallSetTargetDevice(mcpHandle, installToUsb);
+		if(result != 0)
+		{
+			__os_snprintf(errorText1, sizeof(errorText1), "Error: MCP_InstallSetTargetDevice 0x%08X", MCP_GetLastRawError());
+			if (installToUsb)
+				__os_snprintf(errorText2, sizeof(errorText2), "Possible USB HDD disconnected or failure");
+			break;
+		}
+		mcpInstallInfo[2] = (unsigned int)MCP_COMMAND_INSTALL_ASYNC;
+        mcpInstallInfo[3] = (unsigned int)mcpPathInfoVector;
+        mcpInstallInfo[4] = (unsigned int)1;
+        mcpInstallInfo[5] = (unsigned int)0;
 
-            mcpInstallInfo[2] = (unsigned int)MCP_COMMAND_INSTALL_ASYNC;
-            mcpInstallInfo[3] = (unsigned int)mcpPathInfoVector;
-            mcpInstallInfo[4] = (unsigned int)1;
-            mcpInstallInfo[5] = (unsigned int)0;
+        memset(mcpInstallPath, 0, MAX_INSTALL_PATH_LENGTH);
+        __os_snprintf(mcpInstallPath, MAX_INSTALL_PATH_LENGTH, text);
+        memset(mcpPathInfoVector, 0, 0x0C);
 
-            memset(mcpInstallPath, 0, MAX_INSTALL_PATH_LENGTH);
-            __os_snprintf(mcpInstallPath, MAX_INSTALL_PATH_LENGTH, text);
-            memset(mcpPathInfoVector, 0, 0x0C);
+        mcpPathInfoVector[0] = (unsigned int)mcpInstallPath;
+        mcpPathInfoVector[1] = (unsigned int)MAX_INSTALL_PATH_LENGTH;
 
-            mcpPathInfoVector[0] = (unsigned int)mcpInstallPath;
-            mcpPathInfoVector[1] = (unsigned int)MAX_INSTALL_PATH_LENGTH;
+		installCompleted = 0;
+        result = IOS_IoctlvAsync(mcpHandle, MCP_COMMAND_INSTALL_ASYNC, 1, 0, mcpPathInfoVector, IosInstallCallback, mcpInstallInfo);
+        if(result != 0)
+        {
+            __os_snprintf(errorText1, sizeof(errorText1), "Error: MCP_InstallTitleAsync 0x%08X", MCP_GetLastRawError());
+            break;
+        }
 
-			installCompleted = 0;
-            result = IOS_IoctlvAsync(mcpHandle, MCP_COMMAND_INSTALL_ASYNC, 1, 0, mcpPathInfoVector, IosInstallCallback, mcpInstallInfo);
-            if(result != 0)
+    	while(!installCompleted)
+        {
+            memset(mcpInstallInfo, 0, 0x24);
+
+            result = MCP_InstallGetProgress(mcpHandle, mcpInstallInfo);
+
+            if(mcpInstallInfo[0] == 1)
             {
-                __os_snprintf(errorText1, sizeof(errorText1), "Error: MCP_InstallTitleAsync 0x%08X", MCP_GetLastRawError());
-                break;
-            }
-
-            while(!installCompleted)
-            {
-                memset(mcpInstallInfo, 0, 0x24);
-
-                result = MCP_InstallGetProgress(mcpHandle, mcpInstallInfo);
-
-                if(mcpInstallInfo[0] == 1)
+                u64 installedSize, totalSize;
+				totalSize = ((u64)mcpInstallInfo[3] << 32ULL) | mcpInstallInfo[4];
+				installedSize = ((u64)mcpInstallInfo[5] << 32ULL) | mcpInstallInfo[6];
+				int percent = (totalSize != 0) ? ((installedSize * 100.0f) / totalSize) : 0;
+                for(int i = 0; i < 2; i++)
                 {
-                    u64 installedSize, totalSize;
-					totalSize = ((u64)mcpInstallInfo[3] << 32ULL) | mcpInstallInfo[4];
-					installedSize = ((u64)mcpInstallInfo[5] << 32ULL) | mcpInstallInfo[6];
-					int percent = (totalSize != 0) ? ((installedSize * 100.0f) / totalSize) : 0;
-                    for(int i = 0; i < 2; i++)
-                    {
-                        OSScreenClearBufferEx(i, 0);
+                    OSScreenClearBufferEx(i, 0);
 
-                        OSScreenPutFontEx(i, 0, 0, TITLE_TEXT);
-                        OSScreenPutFontEx(i, 0, 1, TITLE_TEXT2);
-						OSScreenPutFontEx(i, 0, 3, "Installing title...");
-                        OSScreenPutFontEx(i, 0, 4, installFolder);
+                    OSScreenPutFontEx(i, 0, 0, TITLE_TEXT);
+                    OSScreenPutFontEx(i, 0, 1, TITLE_TEXT2);
+					OSScreenPutFontEx(i, 0, 3, "Installing title...");
+                    OSScreenPutFontEx(i, 0, 4, installFolder);
 
-                        __os_snprintf(text, sizeof(text), "%08X%08X - %0.1f / %0.1f MB (%i%%)", titleIdHigh, titleIdLow, installedSize / (1024.0f * 1024.0f),
+                    __os_snprintf(text, sizeof(text), "%08X%08X - %0.1f / %0.1f MB (%i%%)", titleIdHigh, titleIdLow, installedSize / (1024.0f * 1024.0f),
                                                                                                   totalSize / (1024.0f * 1024.0f), percent);
-                        OSScreenPutFontEx(i, 0, 5, text);
+                    OSScreenPutFontEx(i, 0, 5, text);
 
-                        if(percent == 100)
-                        {
-                            OSScreenPutFontEx(i, 0, 6, "Please wait...");
-                        }
+                    if(percent == 100)
+                    {
+                        OSScreenPutFontEx(i, 0, 6, "Please wait...");
+                	}
                         // Flip buffers
-                        OSScreenFlipBuffersEx(i);
-                    }
+                    OSScreenFlipBuffersEx(i);
                 }
-
-                usleep(50000);
             }
 
-            if(installError != 0)
-            {
-                if ((installError == 0xFFFCFFE9) && installToUsb)
-				{
-                    __os_snprintf(errorText1, sizeof(errorText1), "Error: 0x%08X access failed (no USB storage attached?)", installError);
-                }
-                else
-				{
-                    __os_snprintf(errorText1, sizeof(errorText1), "Error: install error code 0x%08X", installError);
-					if (installError == 0xFFFBF446 || installError == 0xFFFBF43F)
-						__os_snprintf(errorText2, sizeof(errorText2), "Possible missing or bad title.tik file");
-					else if (installError == 0xFFFBF441)
-						__os_snprintf(errorText2, sizeof(errorText2), "Possible incorrect console for DLC title.tik file");
-					else if (installError == 0xFFFCFFE4)
-						__os_snprintf(errorText2, sizeof(errorText2), "Possible not enough memory on target device");
-					else if (installError == 0xFFFFF825)
-						__os_snprintf(errorText2, sizeof(errorText2), "Possible bad SD card.  Reformat (32k blocks) or replace");
-					else if ((installError & 0xFFFF0000) == 0xFFFB0000)
-						__os_snprintf(errorText2, sizeof(errorText2), "Verify WUP files are correct & complete. DLC/E-shop require Sig Patch");
-                }
+            usleep(50000);
+        }
+
+        if(installError != 0)
+        {
+            if ((installError == 0xFFFCFFE9) && installToUsb)
+			{
+                __os_snprintf(errorText1, sizeof(errorText1), "Error: 0x%08X access failed (no USB storage attached?)", installError);
             }
             else
-            {
-                installSuccess = 1;
+			{
+              	__os_snprintf(errorText1, sizeof(errorText1), "Error: install error code 0x%08X", installError);
+				if (installError == 0xFFFBF446 || installError == 0xFFFBF43F)
+					__os_snprintf(errorText2, sizeof(errorText2), "Possible missing or bad title.tik file");
+				else if (installError == 0xFFFBF441)
+					__os_snprintf(errorText2, sizeof(errorText2), "Possible incorrect console for DLC title.tik file");
+				else if (installError == 0xFFFCFFE4)
+					__os_snprintf(errorText2, sizeof(errorText2), "Possible not enough memory on target device");
+				else if (installError == 0xFFFFF825)
+					__os_snprintf(errorText2, sizeof(errorText2), "Possible bad SD card.  Reformat (32k blocks) or replace");
+				else if ((installError & 0xFFFF0000) == 0xFFFB0000)
+					__os_snprintf(errorText2, sizeof(errorText2), "Verify WUP files are correct & complete. DLC/E-shop require Sig Patch");
             }
-    	}
-    }
-    while(0);
+        }
+        else
+        {
+                installSuccess = 1;
+        }
+    } while(0);
 
 	folderSelect[dirNum] = false;
 	if (installSuccess && useFolderSelect())
